@@ -1,4 +1,5 @@
 import requests
+import xml.dom.minidom
 
 def convert_isbn10_to_isbn13(isbn):
     if len(isbn) == 10:
@@ -10,23 +11,46 @@ def convert_isbn10_to_isbn13(isbn):
         isbn = isbn13_without_check + str(check_digit)
     return isbn
 
-def get_info_Google(isbn):
+def get_info(isbn):
+    title, author, publisher, publication_year, nsfa = None, None, None, None, None
+
+    # Query OCLC API for book information
+    url = f"http://classify.oclc.org/classify2/Classify?isbn={isbn}"
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        dom = xml.dom.minidom.parseString(response.text)
+        works = dom.getElementsByTagName("work")
+        if works:
+            work = works[0]
+            author = work.getAttribute("author")
+            title = work.getAttribute("title")
+        recommendations = dom.getElementsByTagName("recommendations")
+        if recommendations:
+            ddc = recommendations[0].getElementsByTagName("ddc")
+            if ddc:
+                most_popular = ddc[0].getElementsByTagName("mostPopular")
+                if most_popular:
+                    nsfa = most_popular[0].getAttribute("nsfa")
+
+    # Query Google Books API for book information
     url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
     response = requests.get(url)
 
     if response.status_code == 200:
         data = response.json()
         if data["totalItems"] > 0:
+
             book_info = data["items"][0]["volumeInfo"]
             title = book_info.get("title")
             authors = book_info.get("authors")
             author = ", ".join(authors) if authors else None
             publisher = book_info.get("publisher")
             publication_year = book_info.get("publishedDate")
-            return (title, author, publisher, publication_year)
-    return (None, None, None, None)
 
-def get_info_Abebooks(isbn):
+    return (title, author, publisher, publication_year, nsfa)
+
+def get_price(isbn):
     url = "https://www.abebooks.com/servlet/DWRestService/pricingservice"
     payload = {'action': 'getPricingDataByISBN',
                'isbn': isbn,
@@ -59,8 +83,8 @@ def search():
     # Bind the "Return" key to the "search" function
     entry.bind('<Return>', search)
 
-    title, author, publisher, publication_year = get_info_Google(isbn)
-    best_new, best_used = get_info_Abebooks(isbn)
+    title, author, publisher, publication_year, ddc = get_info(isbn)
+    best_new, best_used = get_price(isbn)
     
     # Initialize count variable
     count_hidden = 0
@@ -76,6 +100,10 @@ def search():
     else:
         count_hidden += 1
     result_text += f"ISBN: {isbn}\n"
+    if ddc:
+        result_text += f"DDC: {ddc}\n"
+    else:
+        count_hidden += 1
     if publisher:
         result_text += f"Publisher: {publisher}\n"
     else:
