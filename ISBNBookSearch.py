@@ -4,6 +4,7 @@ import tkinter as tk
 import re
 import webbrowser
 
+ui_mode = True
 
 def convert_isbn10_to_isbn13(isbn):
     if len(isbn) == 10:
@@ -51,6 +52,7 @@ def get_info(isbn):
             author = ", ".join(authors) if authors else None
             publisher = book_info.get("publisher")
             publication_year = book_info.get("publishedDate")
+            publication_year = publication_year[:4]
 
     return title, author, publisher, publication_year, nsfa
 
@@ -63,11 +65,22 @@ def get_price(isbn):
     resp = requests.post(url, data=payload)
     results = resp.json()
     if results['success']:
+        book_new, book_used, destination = None, None, None
         best_new = results['pricingInfoForBestNew']
         best_used = results['pricingInfoForBestUsed']
-        return ((best_new['bestPriceInPurchaseCurrencyWithCurrencySymbol']),
-                (best_used['bestPriceInPurchaseCurrencyWithCurrencySymbol']))
-    return [None, None]
+        if best_new != None:
+            new_price = best_new['bestPriceInPurchaseCurrencyValueOnly']
+            new_shipping = best_new['bestShippingToDestinationPriceInPurchaseCurrencyValueOnly']
+            destination = best_new['shippingDestinationNameInSurferLanguage']
+        if best_used != None:
+            used_price = best_used['bestPriceInPurchaseCurrencyValueOnly']
+            used_shipping = best_used['bestShippingToDestinationPriceInPurchaseCurrencyValueOnly']
+            destination = best_used['shippingDestinationNameInSurferLanguage']
+        
+        book_new = (float(new_price)*100+float(new_shipping)*100)/100
+        book_used = (float(used_price)*100+float(used_shipping)*100)/100
+        return (book_new, book_used, destination)
+    return [None, None, None]
 
 
 def search():
@@ -85,7 +98,7 @@ def search():
     entry.bind('<Return>', search)
 
     title, author, publisher, publication_year, ddc = get_info(isbn)
-    best_new, best_used = get_price(isbn)
+    best_new, best_used, destination = get_price(isbn)
 
     # Initialize count variable
     count_hidden = 0
@@ -114,11 +127,15 @@ def search():
     else:
         count_hidden += 1
     if best_new:
-        result_text += f"New Book Price: {best_new}\n"
+        result_text += f"New Book Price: US$ {best_new} \n"
     else:
         count_hidden += 1
     if best_used:
-        result_text += f"Used Book Price: {best_used}\n"
+        result_text += f"Used Book Price: US$ {best_used}\n"
+    else:
+        count_hidden += 1    
+    if destination:
+        result_text += f"Shipping To: {destination}\n"
     else:
         count_hidden += 1
 
@@ -149,7 +166,6 @@ def open_bookfinder():
     webbrowser.open(f'https://www.bookfinder.com/isbn/{isbn}/')
 
 
-ui_mode = False
 if ui_mode:
     root = tk.Tk()
     root.title("Book Search")
@@ -160,6 +176,7 @@ if ui_mode:
 
     entry = tk.Entry(root)
     entry.pack()
+    entry.bind('<Return>', lambda event: search())
 
     button = tk.Button(root, text="Search", command=search)
     button.pack()
@@ -188,7 +205,7 @@ else:
                 isbn = convert_isbn10_to_isbn13(isbn)
 
             title, author, publisher, publication_year, ddc = get_info(isbn)
-            best_new, best_used = get_price(isbn)
+            best_new, best_used, destination = get_price(isbn)
 
             if not error:
                 print(f"\n")
@@ -200,9 +217,9 @@ else:
                 print(f"Publication Year: {publication_year}")
                 print(f"Open in Abebooks: https://www.abebooks.com/servlet/SearchResults?kn={isbn}")
                 print(f"Open in Bookfinder: https://www.bookfinder.com/isbn/{isbn}")
-                print(f"New Book Price: {best_new}")
-                print(f"Used Book Price: {best_used}")
-
+                print(f"New Book Price: US$ {best_new}")
+                print(f"Used Book Price: US$ {best_used}")
+                print(f"Shipping To: {destination}")
 
 
     main()
