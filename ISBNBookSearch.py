@@ -52,7 +52,8 @@ def get_info(isbn):
             author = ", ".join(authors) if authors else None
             publisher = book_info.get("publisher")
             publication_year = book_info.get("publishedDate")
-            publication_year = publication_year[:4]
+            if publication_year != None:
+                publication_year = publication_year[:4]
 
     return title, author, publisher, publication_year, nsfa
 
@@ -66,19 +67,20 @@ def get_price(isbn):
     results = resp.json()
     if results['success']:
         book_new, book_used, destination = None, None, None
+        new_price, used_price, new_shipping, used_shipping = None, None, None, None
         best_new = results['pricingInfoForBestNew']
         best_used = results['pricingInfoForBestUsed']
         if best_new != None:
             new_price = best_new['bestPriceInPurchaseCurrencyValueOnly']
             new_shipping = best_new['bestShippingToDestinationPriceInPurchaseCurrencyValueOnly']
             destination = best_new['shippingDestinationNameInSurferLanguage']
+            book_new = "%0.2f" %(float(new_price)+float(new_shipping))
         if best_used != None:
             used_price = best_used['bestPriceInPurchaseCurrencyValueOnly']
             used_shipping = best_used['bestShippingToDestinationPriceInPurchaseCurrencyValueOnly']
             destination = best_used['shippingDestinationNameInSurferLanguage']
+            book_used = "%0.2f" %(float(used_price)+float(used_shipping))
         
-        book_new = (float(new_price)*100+float(new_shipping)*100)/100
-        book_used = (float(used_price)*100+float(used_shipping)*100)/100
         return (book_new, book_used, destination)
     return [None, None, None]
 
